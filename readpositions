@@ -1,0 +1,38 @@
+#!/bin/bash
+# by Andrés Culasso PhD
+# usage:
+# readpositions pos_profile bamdir outdir
+#
+# This script require bioalcidaejdk, awk and sed to work.
+# bioalcidaejdk was developed by Pierre Lindenbaum PhD and could be downloaded and insalled
+# from here: https://github.com/lindenb/jvarkit
+# the rest of the programs probably are already installed in your linux distribution.
+# pos_profile must contain three fields:
+# 1.- refname: is the name of chromosome or reference sequence used to assemble the reads
+# 2.- startpos: is the position name (relative to refname sequence) where the codon start
+# 3.- outputname: some suffix used to create a result file, for example the codon desingation
+# if you want to read more than a codon, change the third line in codon_read_template.js to
+# include more than 3 nucleotides (change the 3 in "endpos=startpos+3" for your choice)
+# bamdir: folder where bam (and bai, since alignment must be indexed) files will be read.
+# outdir: folder where multiple .csv files containig the codon counts for each position listed
+#         in pos_profile
+# change the folowing line according to the palce were bioalcidaejdk.jar is placed.
+bajar=~/installers/jvarkit/dist/bioalcidaejdk.jar
+while read refname startpos outputname
+do
+  echo Looking for position $startpos in \"chormosome\" $refname 
+  tmpsed='s/%REF%/'$refname'/g;s/%START%/'$startpos'/g;'
+  sed $tmpsed codon_read_template.js > tmp.js
+  for bamfile in $2/*.bam
+    do
+      echo Processing $bamfile
+      bn=`basename $bamfile`
+      outfile=$3"/"$bn"_"$refname"_"$outputname".csv"
+      echo writing $outfile
+      java -jar $bajar -f tmp.js $bamfile 2>bioal.log | awk '!/\./{ a[$1]++;total++ }; END { PROCINFO["sorted_in"]="@val_num_desc"; for (i in a) { print i "\t" a[i] "\t" a[i]/total }}' > $outfile
+    done
+  rm tmp.js 
+done < $1
+# alternative for non working PROCINFO awk use the folowing "one-liner" to sort codons by abundance.
+# for f in *.csv; do sort -n -r -k 2 -o $f{,};done
+# sort options, -n take input as whole numbers (1,2,3 and no 1, 10, 11, 2, 3), -r (reverse rder), -k 2 (ordering field), -o file file to output in the same file, same as file{,} for bash)
